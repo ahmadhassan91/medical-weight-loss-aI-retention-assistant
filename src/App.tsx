@@ -21,7 +21,6 @@ import {
   Sparkles,
   Stethoscope,
   TrendingUp,
-  UserCheck,
   Users,
   Workflow,
 } from 'lucide-react';
@@ -32,7 +31,7 @@ import {
   roiItems,
   safetyNotes,
   type LocationFilter,
-type Metric,
+  type Metric,
   type Patient,
   type RiskLevel,
   type Tone,
@@ -157,8 +156,8 @@ function App() {
         <div className="brand-lockup">
           <div className="brand-mark">C</div>
           <div>
-            <strong>Clustox Clinical Command</strong>
-            <span>AI-assisted retention support for care teams</span>
+            <strong>Mary&apos;s Follow-up Board</strong>
+            <span>Simple daily patient retention support</span>
           </div>
         </div>
         <div className="topbar-actions">
@@ -175,10 +174,10 @@ function App() {
 
       <section className="hero-band">
         <div>
-          <h1>Multi-location patient retention command center</h1>
+          <h1>Start with the patients who need help today.</h1>
           <p>
-            Identify missed-care signals, draft staff-reviewed outreach, and route clinical concerns before
-            patients drift out of Mary&apos;s weight-loss programs.
+            A calmer command center for Mary&apos;s team: see the highest priority, review the message,
+            approve outreach, or send the concern to a provider.
           </p>
         </div>
         <div className="hero-actions" aria-label="Location filter">
@@ -193,22 +192,18 @@ function App() {
               }}
             >
               {item === 'All Locations' ? <Network size={16} /> : <MapPin size={16} />}
-              {item}
+              {item === 'All Locations' ? 'All clinics' : item}
             </button>
           ))}
         </div>
       </section>
 
+      <PriorityPanel patient={selectedPatient} patients={visiblePatients} onSelect={() => setSelectedId(selectedPatient.id)} />
+
       <section className="metric-grid" aria-label="Clinical operations metrics">
         {metrics.map((metric) => (
           <MetricCard metric={metric} key={metric.label} />
         ))}
-      </section>
-
-      <section className="promise-grid">
-        <RetentionCurve />
-        <WorkflowComparison />
-        <PaybackSummary patients={visiblePatients} />
       </section>
 
       <section className="workspace-grid">
@@ -240,6 +235,12 @@ function App() {
           onEscalate={escalatePatient}
           onShowSoap={() => setShowSoap((value) => !value)}
         />
+      </section>
+
+      <section className="promise-grid" aria-label="Why this improves retention">
+        <RetentionCurve />
+        <WorkflowComparison />
+        <PaybackSummary patients={visiblePatients} />
       </section>
 
       <section className="bottom-grid">
@@ -276,6 +277,56 @@ function MetricCard({ metric }: { metric: Metric }) {
       <strong>{metric.value}</strong>
       <small>{metric.sublabel}</small>
     </article>
+  );
+}
+
+function PriorityPanel({
+  patient,
+  patients: visiblePatients,
+  onSelect,
+}: {
+  patient: Patient;
+  patients: Patient[];
+  onSelect: () => void;
+}) {
+  const providerReview = visiblePatients.filter((item) => item.risk === 'Clinical Review').length;
+  const readyToSend = visiblePatients.filter((item) => item.risk === 'High Risk' || item.risk === 'Moderate Risk').length;
+  return (
+    <section className="priority-panel">
+      <div className="priority-main">
+        <span className={`status-chip ${riskClass[patient.risk]}`}>{patient.risk}</span>
+        <h2>First priority: {patient.name}</h2>
+        <p>{patient.reason}</p>
+        <button className="primary-button large-action" onClick={onSelect}>
+          <MessageSquareText size={18} />
+          Review this patient
+        </button>
+      </div>
+      <div className="priority-steps">
+        <div>
+          <strong>1</strong>
+          <span>Read the patient context</span>
+        </div>
+        <div>
+          <strong>2</strong>
+          <span>Approve or edit the message</span>
+        </div>
+        <div>
+          <strong>3</strong>
+          <span>Escalate if clinical review is needed</span>
+        </div>
+      </div>
+      <div className="priority-counts">
+        <span>
+          <strong>{providerReview}</strong>
+          provider review
+        </span>
+        <span>
+          <strong>{readyToSend}</strong>
+          ready for outreach
+        </span>
+      </div>
+    </section>
   );
 }
 
