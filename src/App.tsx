@@ -291,7 +291,7 @@ function App() {
             ))}
           </section>
 
-          <section className="bottom-grid" style={{ marginTop: '24px' }}>
+          <section className="bottom-grid-ops" style={{ marginTop: '24px' }}>
             <OperationsPanel location={location} patients={visiblePatients} />
             <AuditPanel sentCount={sentCount} escalated={escalated} patient={selectedPatient} />
           </section>
@@ -306,9 +306,9 @@ function App() {
             <PaybackSummary patients={visiblePatients} />
           </section>
 
-          <section className="bottom-grid" style={{ marginTop: '24px' }}>
+          <div style={{ marginTop: '24px' }}>
             <RoiMatrix />
-          </section>
+          </div>
         </>
       )}
     </main>

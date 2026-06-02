@@ -1029,6 +1029,13 @@ textarea:focus {
   margin-top: 18px;
 }
 
+.bottom-grid-ops {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr; /* 2-column layout for ops tab panels */
+  gap: 18px;
+  margin-top: 18px;
+}
+
 .location-map {
   display: grid;
   gap: 16px;
@@ -1037,7 +1044,7 @@ textarea:focus {
 
 .ops-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, 1fr); /* 2x2 grid to prevent senior text-wrap squishing */
   gap: 12px;
   padding: 20px 20px 0;
 }
@@ -1259,7 +1266,8 @@ textarea:focus {
 
   .promise-grid,
   .workspace-grid,
-  .bottom-grid {
+  .bottom-grid,
+  .bottom-grid-ops {
     grid-template-columns: 1fr;
   }
 
