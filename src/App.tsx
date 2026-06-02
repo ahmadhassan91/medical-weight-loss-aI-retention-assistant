@@ -35,6 +35,7 @@ import {
   type Patient,
   type RiskLevel,
   type Tone,
+  type Message,
 } from './data';
 
 const toneDrafts: Record<Tone, string> = {
@@ -73,6 +74,12 @@ function App() {
   const [sentCount, setSentCount] = useState(0);
   const [escalated, setEscalated] = useState(true);
   const [showSoap, setShowSoap] = useState(false);
+  const [showFhir, setShowFhir] = useState(false);
+
+  // Phase 3 States
+  const [patientList, setPatientList] = useState<Patient[]>(patients);
+  const [auditLogsList, setAuditLogsList] = useState<string[]>(auditLog);
+  const [showIntakeForm, setShowIntakeForm] = useState(false);
 
   // Senior Accessibility States
   const [textSize, setTextSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
@@ -90,7 +97,7 @@ function App() {
   };
 
   const visiblePatients = useMemo(() => {
-    return patients.filter((patient) => {
+    return patientList.filter((patient) => {
       const locationMatch = location === 'All Locations' || patient.location === location;
       const riskMatch = riskFilter === 'All Risks' || patient.risk === riskFilter;
       const statusMatch = statusFilter === 'All Statuses' || patient.status === statusFilter;
@@ -103,12 +110,25 @@ function App() {
           .includes(normalizedQuery);
       return locationMatch && riskMatch && statusMatch && queryMatch;
     });
-  }, [location, query, riskFilter, statusFilter]);
+  }, [location, query, riskFilter, statusFilter, patientList]);
 
   const selectedPatient = useMemo(() => {
     const scoped = visiblePatients.find((patient) => patient.id === selectedId);
-    return scoped ?? visiblePatients[0] ?? patients[0];
-  }, [selectedId, visiblePatients]);
+    return scoped ?? visiblePatients[0] ?? patientList[0];
+  }, [selectedId, visiblePatients, patientList]);
+
+  // Synchronize draft message when selected patient changes
+  useEffect(() => {
+    if (selectedPatient) {
+      const aiMsg = selectedPatient.messages.find((m) => m.sender === 'ai');
+      if (aiMsg) {
+        setDraft(aiMsg.body);
+      } else {
+        setDraft(`Hi ${selectedPatient.name.split(' ')[0]}, this is Green Valley Weight Care checking in. How is your program going?`);
+      }
+      setEscalated(selectedPatient.risk === 'Clinical Review');
+    }
+  }, [selectedPatient]);
 
   const metrics = useMemo<Metric[]>(() => {
     const atRisk = visiblePatients.filter((patient) =>
@@ -152,17 +172,242 @@ function App() {
 
   function changeTone(nextTone: Tone) {
     setTone(nextTone);
-    setDraft(toneDrafts[nextTone]);
+    if (selectedPatient) {
+      // Create variations for current patient name to make it feel premium
+      const firstName = selectedPatient.name.split(' ')[0];
+      const drafts: Record<Tone, string> = {
+        Friendly: `Hi ${firstName}, thanks for the update. We can help you restart without judgment. Reply MORNING and our team will send available check-in times for next week.`,
+        Clinical: `Hi ${firstName}, thank you for the update. Reply MORNING and our care team can provide available follow-up times to support your next check-in.`,
+        Urgent: `Hi ${firstName}, we would like to help you reconnect with the care team this week. Reply MORNING and we will prioritize available check-in times.`,
+      };
+      setDraft(drafts[nextTone]);
+    } else {
+      setDraft(toneDrafts[nextTone]);
+    }
   }
 
-  function approveDraft() {
+  function approveDraft(patientId: string, currentDraft: string) {
+    setPatientList((prevList) => {
+      return prevList.map((p) => {
+        if (p.id !== patientId) return p;
+        
+        // Remove AI draft if it exists
+        const remainingMessages = p.messages.filter((m) => m.sender !== 'ai');
+        
+        const newMsg: Message = {
+          id: `m-clinic-${Date.now()}`,
+          sender: 'clinic',
+          time: 'Just now',
+          body: currentDraft,
+        };
+
+        const updatedScore = Math.max(15, p.riskScore - 15);
+        const updatedRisk = updatedScore > 80 ? 'High Risk' : updatedScore > 50 ? 'Moderate Risk' : 'Low Risk';
+
+        setAuditLogsList((prevLogs) => [
+          `${new Date().toLocaleTimeString().substring(0, 5)} - Staff approved outreach message for ${p.id}.`,
+          ...prevLogs,
+        ]);
+
+        return {
+          ...p,
+          messages: [...remainingMessages, newMsg],
+          risk: p.risk === 'Clinical Review' ? 'Clinical Review' : updatedRisk,
+          riskScore: updatedScore,
+          recommendedAction: 'Outreach delivered. Awaiting reply.',
+        };
+      });
+    });
     setSentCount((count) => count + 1);
   }
 
-  function escalatePatient() {
+  function escalatePatient(patientId: string) {
+    setPatientList((prevList) => {
+      return prevList.map((p) => {
+        if (p.id !== patientId) return p;
+
+        setAuditLogsList((prevLogs) => [
+          `${new Date().toLocaleTimeString().substring(0, 5)} - Clinical escalation triggered for ${p.id} (nausea side effects reported).`,
+          ...prevLogs,
+        ]);
+
+        return {
+          ...p,
+          risk: 'Clinical Review',
+          riskScore: 95,
+          recommendedAction: 'Immediate provider clinical triage required.',
+          escalationReason: 'Side-effect alert: Provider review requested.',
+        };
+      });
+    });
     setEscalated(true);
     setShowSoap(true);
+    setShowFhir(false);
   }
+
+  const handleSendPatientMessage = (patientId: string, messageText: string) => {
+    setPatientList((prevList) => {
+      return prevList.map((p) => {
+        if (p.id !== patientId) return p;
+
+        const newMsg: Message = {
+          id: `m-sim-${Date.now()}`,
+          sender: 'patient',
+          time: 'Just now',
+          body: messageText,
+        };
+
+        const updatedMessages = [...p.messages, newMsg];
+
+        let nextRisk = p.risk;
+        let nextScore = p.riskScore;
+        let nextAction = p.recommendedAction;
+        let nextStatus = p.status;
+        let escalationReason = p.escalationReason;
+        let auditMsg = '';
+
+        const text = messageText.toLowerCase();
+
+        // 1. Side effects check
+        if (
+          text.includes('nausea') ||
+          text.includes('dizzy') ||
+          text.includes('sick') ||
+          text.includes('pain') ||
+          text.includes('vomit') ||
+          text.includes('headache') ||
+          text.includes('stomach') ||
+          text.includes('symptom')
+        ) {
+          nextRisk = 'Clinical Review';
+          nextScore = Math.max(nextScore, 95);
+          nextAction = 'Immediate provider clinical triage required.';
+          nextStatus = 'Clinical Review';
+          escalationReason = `Reported symptoms: "${messageText}"`;
+          auditMsg = `Clinical Review alert: Patient ${p.name} (${p.id}) reported side effects: "${messageText}". Route to Dr. Wallace MD immediately.`;
+        }
+        // 2. Non-adherence
+        else if (
+          text.includes('missed') ||
+          text.includes('forgot') ||
+          text.includes('skip') ||
+          text.includes('skipped') ||
+          text.includes('travel') ||
+          text.includes('busy') ||
+          text.includes('late') ||
+          text.includes('vacation')
+        ) {
+          nextRisk = 'High Risk';
+          nextScore = Math.max(nextScore, 85);
+          nextAction = 'Send high-priority re-engagement SMS with schedule link.';
+          nextStatus = 'At Risk';
+          auditMsg = `Adherence warning: Patient ${p.name} (${p.id}) reported travel/skipped dose. Outreach scheduled.`;
+        }
+        // 3. Positive progress
+        else if (
+          text.includes('lost') ||
+          text.includes('down') ||
+          text.includes('pound') ||
+          text.includes('lbs') ||
+          text.includes('kg') ||
+          text.includes('weight') ||
+          text.includes('great') ||
+          text.includes('good') ||
+          text.includes('happy') ||
+          text.includes('well')
+        ) {
+          nextRisk = 'Low Risk';
+          nextScore = 20;
+          nextAction = 'Send encouraging progress confirmation.';
+          nextStatus = 'Needs Follow-Up';
+          auditMsg = `Progress update: Patient ${p.name} (${p.id}) shared weight/wellness progress: "${messageText}".`;
+        }
+        // 4. Default general
+        else {
+          nextRisk = 'Moderate Risk';
+          nextScore = 60;
+          nextAction = 'Review response and follow up.';
+          nextStatus = 'Needs Follow-Up';
+          auditMsg = `General SMS reply: Patient ${p.name} (${p.id}) sent a message: "${messageText}".`;
+        }
+
+        if (auditMsg) {
+          setAuditLogsList((prevLogs) => [
+            `${new Date().toLocaleTimeString().substring(0, 5)} - ${auditMsg}`,
+            ...prevLogs,
+          ]);
+        }
+
+        return {
+          ...p,
+          messages: updatedMessages,
+          risk: nextRisk,
+          riskScore: nextScore,
+          recommendedAction: nextAction,
+          status: nextStatus,
+          escalationReason,
+        };
+      });
+    });
+  };
+
+  const handleAddPatient = (newPatientData: {
+    name: string;
+    ageRange: string;
+    location: 'Centennial' | 'Salida';
+    program: string;
+    risk: RiskLevel;
+    riskScore: number;
+    reason: string;
+    status: string;
+    recommendedAction: string;
+  }) => {
+    const nextId = `PT-${1000 + Math.floor(Math.random() * 9000)}`;
+    const newPatient: Patient = {
+      ...newPatientData,
+      id: nextId,
+      lastVisit: 'Today',
+      nextAppointment: 'Not scheduled',
+      lastCheckIn: 'Just now',
+      missedAppointments: 0,
+      unreadMessages: 0,
+      refillStatus: 'Current',
+      consent: 'Opted in',
+      coach: 'Elena P.',
+      provider: 'Dr. Wallace',
+      opportunity: 1200,
+      messages: [
+        {
+          id: `m-sim-init-${Date.now()}`,
+          sender: 'patient',
+          time: 'Just now',
+          body: `Hi, registering for Green Valley Weight Care. ${newPatientData.reason}`,
+        },
+        {
+          id: `m-sim-ai-${Date.now()}`,
+          sender: 'ai',
+          time: 'Draft pending',
+          body: `Hi ${newPatientData.name.split(' ')[0]}, welcome to Green Valley Weight Care. We are excited to support your journey. Reply YES to confirm your first coaching session.`,
+        },
+      ],
+    };
+
+    setPatientList((prev) => [newPatient, ...prev]);
+    setSelectedId(nextId);
+    setShowIntakeForm(false);
+
+    setAuditLogsList((prevLogs) => [
+      `${new Date().toLocaleTimeString().substring(0, 5)} - New patient ${newPatient.name} (${nextId}) registered via Intake Ingestion.`,
+      ...prevLogs,
+    ]);
+  };
+
+  const handleSyncComplete = (logText: string) => {
+    setAuditLogsList((prev) => [
+      `${new Date().toLocaleTimeString().substring(0, 5)} - ${logText}`,
+      ...prev,
+    ]);
+  };
 
   return (
     <main className={`app-shell text-scale-${textSize}`}>
@@ -285,7 +530,7 @@ function App() {
                   key={item}
                   onClick={() => {
                     setLocation(item);
-                    const next = item === 'All Locations' ? patients[0] : patients.find((patient) => patient.location === item);
+                    const next = item === 'All Locations' ? patientList[0] : patientList.find((patient) => patient.location === item);
                     if (next) setSelectedId(next.id);
                   }}
                 >
@@ -312,24 +557,44 @@ function App() {
                 setSelectedId(patient.id);
                 setEscalated(patient.risk === 'Clinical Review');
                 setShowSoap(false);
+                setShowFhir(false);
+                setShowIntakeForm(false);
               }}
+              onAddPatientClick={() => setShowIntakeForm(true)}
             />
-            <PatientCommand
-              patient={selectedPatient}
-              tone={tone}
-              draft={draft}
-              sentCount={sentCount}
-              escalated={escalated}
-              showSoap={showSoap}
-              onToneChange={changeTone}
-              onDraftChange={setDraft}
-              onApprove={approveDraft}
-              onEscalate={escalatePatient}
-              onShowSoap={() => setShowSoap((value) => !value)}
-              userRole={userRole}
-              customSoap={customSoapRecords[selectedPatient.id]}
-              onVoiceScribeComplete={(sub, assess, plan) => handleVoiceScribeComplete(selectedPatient.id, sub, assess, plan)}
-            />
+            {showIntakeForm ? (
+              <PatientIntakeForm
+                onCancel={() => setShowIntakeForm(false)}
+                onSubmit={handleAddPatient}
+              />
+            ) : (
+              <PatientCommand
+                patient={selectedPatient}
+                tone={tone}
+                draft={draft}
+                sentCount={sentCount}
+                escalated={escalated}
+                showSoap={showSoap}
+                onToneChange={changeTone}
+                onDraftChange={setDraft}
+                onApprove={() => approveDraft(selectedPatient.id, draft)}
+                onEscalate={() => escalatePatient(selectedPatient.id)}
+                onShowSoap={() => {
+                  setShowSoap((value) => !value);
+                  if (showFhir) setShowFhir(false);
+                }}
+                userRole={userRole}
+                customSoap={customSoapRecords[selectedPatient.id]}
+                onVoiceScribeComplete={(sub, assess, plan) => handleVoiceScribeComplete(selectedPatient.id, sub, assess, plan)}
+                showFhir={showFhir}
+                onShowFhir={() => {
+                  setShowFhir((value) => !value);
+                  if (showSoap) setShowSoap(false);
+                }}
+                onFhirSyncComplete={handleSyncComplete}
+                onSendPatientMessage={(msgText) => handleSendPatientMessage(selectedPatient.id, msgText)}
+              />
+            )}
           </section>
         </>
       )}
@@ -344,7 +609,7 @@ function App() {
 
           <section className="bottom-grid-ops" style={{ marginTop: '24px' }}>
             <OperationsPanel location={location} patients={visiblePatients} />
-            <AuditPanel sentCount={sentCount} escalated={escalated} patient={selectedPatient} />
+            <AuditPanel logs={auditLogsList} />
           </section>
         </>
       )}
@@ -526,6 +791,7 @@ function RiskQueue({
   onRiskFilterChange,
   onStatusFilterChange,
   onSelect,
+  onAddPatientClick,
 }: {
   patients: Patient[];
   selectedId: string;
@@ -536,6 +802,7 @@ function RiskQueue({
   onRiskFilterChange: (risk: 'All Risks' | RiskLevel) => void;
   onStatusFilterChange: (status: string) => void;
   onSelect: (patient: Patient) => void;
+  onAddPatientClick: () => void;
 }) {
   const riskOptions: Array<'All Risks' | RiskLevel> = [
     'All Risks',
@@ -551,7 +818,14 @@ function RiskQueue({
       <PanelHeader
         icon={Gauge}
         title="Patient risk queue"
-        action={`${visiblePatients.length} patients`}
+        action={
+          <div className="queue-header-actions">
+            <button className="add-patient-btn" onClick={onAddPatientClick} title="Add a new patient to the board">
+              + New Intake
+            </button>
+            <span>{visiblePatients.length} patients</span>
+          </div>
+        }
       />
       <div className="queue-filters">
         <label className="search-box">
@@ -620,6 +894,10 @@ function PatientCommand({
   userRole,
   customSoap,
   onVoiceScribeComplete,
+  showFhir,
+  onShowFhir,
+  onFhirSyncComplete,
+  onSendPatientMessage,
 }: {
   patient: Patient;
   tone: Tone;
@@ -635,6 +913,10 @@ function PatientCommand({
   userRole: 'coach' | 'provider';
   customSoap?: { subjective: string; assessment: string; plan: string };
   onVoiceScribeComplete: (subjective: string, assessment: string, plan: string) => void;
+  showFhir: boolean;
+  onShowFhir: () => void;
+  onFhirSyncComplete: (logMessage: string) => void;
+  onSendPatientMessage: (messageText: string) => void;
 }) {
   return (
     <section className="panel patient-panel">
@@ -687,7 +969,7 @@ function PatientCommand({
         </aside>
 
         <div className="conversation-area">
-          <div className="thread">
+          <div className="thread" style={{ maxHeight: '350px', overflowY: 'auto' }}>
             {patient.messages.map((message) => (
               <div className={`message ${message.sender}`} key={message.id}>
                 <span>{message.sender === 'patient' ? patient.name : message.sender === 'clinic' ? 'Clinic' : 'AI Draft'}</span>
@@ -695,14 +977,10 @@ function PatientCommand({
                 <small>{message.time}</small>
               </div>
             ))}
-            {sentCount > 0 && (
-              <div className="message clinic">
-                <span>Approved by staff</span>
-                <p>{draft}</p>
-                <small>Just now</small>
-              </div>
-            )}
           </div>
+
+          {/* Interactive SMS Simulator */}
+          <SmsSimulator patient={patient} onSendMessage={onSendPatientMessage} />
 
           <div className="ai-panel">
             <div className="ai-header">
@@ -729,9 +1007,13 @@ function PatientCommand({
                 <Stethoscope size={16} />
                 Escalate to provider
               </button>
-              <button className="secondary-button" onClick={onShowSoap}>
+              <button className={`secondary-button ${showSoap ? 'active' : ''}`} onClick={onShowSoap}>
                 <FileText size={16} />
-                SOAP preview
+                SOAP Preview
+              </button>
+              <button className={`secondary-button ${showFhir ? 'active' : ''}`} onClick={onShowFhir}>
+                <Network size={16} />
+                FHIR Sync
               </button>
             </div>
             {escalated && (
@@ -751,6 +1033,12 @@ function PatientCommand({
           userRole={userRole}
           customSoap={customSoap}
           onVoiceScribeComplete={onVoiceScribeComplete}
+        />
+      )}
+      {showFhir && (
+        <FhirIntegrationPanel
+          patient={patient}
+          onSyncComplete={onFhirSyncComplete}
         />
       )}
     </section>
@@ -998,19 +1286,13 @@ function RoiMatrix() {
   );
 }
 
-function AuditPanel({ sentCount, escalated, patient }: { sentCount: number; escalated: boolean; patient: Patient }) {
-  const liveEntries = [
-    ...(sentCount > 0 ? [`Now - Staff approved AI outreach for ${patient.id}; message added to timeline.`] : []),
-    ...(escalated ? [`Now - Human review status active for ${patient.id}; provider queue updated.`] : []),
-    ...auditLog,
-  ];
-
+function AuditPanel({ logs }: { logs: string[] }) {
   return (
     <section className="panel">
       <PanelHeader icon={Clock} title="Audit and guardrails" action="Live log" />
       <div className="audit-list">
-        {liveEntries.slice(0, 7).map((entry) => (
-          <div key={entry}>
+        {logs.slice(0, 8).map((entry, idx) => (
+          <div key={idx}>
             <span />
             <p>{entry}</p>
           </div>
@@ -1027,7 +1309,7 @@ function PanelHeader({
 }: {
   icon: typeof Users;
   title: string;
-  action?: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="panel-header">
@@ -1035,8 +1317,446 @@ function PanelHeader({
         <Icon size={18} />
         <h2>{title}</h2>
       </div>
-      {action && <span>{action}</span>}
+      {action && (typeof action === 'string' ? <span>{action}</span> : action)}
     </div>
+  );
+}
+
+// ==========================================
+// Phase 3 Support Components
+// ==========================================
+
+function SmsSimulator({
+  patient,
+  onSendMessage,
+}: {
+  patient: Patient;
+  onSendMessage: (messageText: string) => void;
+}) {
+  const [inputValue, setInputValue] = useState('');
+
+  const quickReplies = [
+    { text: 'Severe stomach pain after dose', label: '🤢 Symptoms' },
+    { text: 'I missed my dose because of travel', label: '✈️ Missed Dose' },
+    { text: 'I lost 3 lbs this week!', label: '⚖️ Weight Lost' },
+    { text: 'Refill working great, no complaints', label: '✓ Feeling Well' },
+  ];
+
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim()) return;
+    onSendMessage(inputValue.trim());
+    setInputValue('');
+  };
+
+  return (
+    <div className="sms-simulator-box">
+      <div className="sms-simulator-header">
+        <strong>
+          <Send size={14} />
+          Simulate Patient SMS Response
+        </strong>
+        <span style={{ fontSize: 'var(--font-xs)', color: 'var(--blue)', fontWeight: 'bold' }}>
+          Interactive Demo Mode
+        </span>
+      </div>
+      <form className="sms-input-row" onSubmit={handleSend}>
+        <input
+          type="text"
+          placeholder="Type a mock reply from patient or click below..."
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+        />
+        <button type="submit" className="sms-send-btn">
+          Send Reply
+        </button>
+      </form>
+      <div className="sms-quick-tags">
+        {quickReplies.map((qr) => (
+          <button
+            key={qr.text}
+            type="button"
+            className="sms-quick-tag"
+            onClick={() => onSendMessage(qr.text)}
+          >
+            {qr.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FhirIntegrationPanel({
+  patient,
+  onSyncComplete,
+}: {
+  patient: Patient;
+  onSyncComplete: (logMessage: string) => void;
+}) {
+  const [activeFhirTab, setActiveFhirTab] = useState<'patient' | 'observation' | 'communication'>('patient');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncLogs, setSyncLogs] = useState<string[]>([]);
+  const terminalEndRef = useRef<HTMLDivElement | null>(null);
+
+  const formattedName = patient.name.split(' ');
+  const firstName = formattedName[0];
+  const lastName = formattedName[1] || '';
+
+  const fhirPatient = {
+    resourceType: 'Patient',
+    id: patient.id,
+    active: patient.status !== 'Opted Out',
+    name: [
+      {
+        use: 'official',
+        family: lastName,
+        given: [firstName],
+      },
+    ],
+    telecom: [
+      {
+        system: 'sms',
+        value: `+1-303-555-0${patient.id.replace('PT-', '')}`,
+        use: 'mobile',
+      },
+    ],
+    gender: 'unknown',
+    birthDate: patient.ageRange === '25-34' ? '1996-03-12' : patient.ageRange === '35-44' ? '1988-09-24' : '1974-12-05',
+    extension: [
+      {
+        url: 'http://hl7.org/fhir/StructureDefinition/consent-state',
+        valueString: patient.consent,
+      },
+    ],
+  };
+
+  const fhirObservation = {
+    resourceType: 'Observation',
+    id: `obs-${patient.id}`,
+    status: 'final',
+    category: [
+      {
+        coding: [
+          {
+            system: 'http://terminology.hl7.org/CodeSystem/observation-category',
+            code: 'clinical-risk',
+            display: 'Risk Assessment',
+          },
+        ],
+      },
+    ],
+    code: {
+      coding: [
+        {
+          system: 'http://loinc.org',
+          code: '80345-2',
+          display: 'Program Adherence Risk Score',
+        },
+      ],
+      text: `Care Program: ${patient.program}`,
+    },
+    subject: {
+      reference: `Patient/${patient.id}`,
+    },
+    effectiveDateTime: new Date().toISOString(),
+    valueQuantity: {
+      value: patient.riskScore,
+      unit: 'Risk Score %',
+      system: 'http://unitsofmeasure.org',
+      code: '%',
+    },
+    interpretation: [
+      {
+        coding: [
+          {
+            system: 'http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation',
+            code: patient.risk === 'Clinical Review' ? 'CR' : patient.risk === 'High Risk' ? 'A' : 'N',
+            display: patient.risk,
+          },
+        ],
+        text: patient.reason,
+      },
+    ],
+  };
+
+  const fhirCommunication = {
+    resourceType: 'Communication',
+    id: `comm-${patient.id}`,
+    status: 'completed',
+    subject: {
+      reference: `Patient/${patient.id}`,
+    },
+    sent: new Date().toISOString(),
+    recipient: [
+      {
+        reference: `Patient/${patient.id}`,
+      },
+    ],
+    payload: patient.messages.map((m) => ({
+      contentString: `[${m.sender}] ${m.body} (${m.time})`,
+    })),
+  };
+
+  const currentFhirJson =
+    activeFhirTab === 'patient'
+      ? fhirPatient
+      : activeFhirTab === 'observation'
+      ? fhirObservation
+      : fhirCommunication;
+
+  useEffect(() => {
+    if (terminalEndRef.current) {
+      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [syncLogs]);
+
+  const triggerFhirSync = () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncLogs([]);
+
+    const steps = [
+      { msg: 'Initializing secure HL7 FHIR r4 integration pipeline...', type: 'info' },
+      { msg: 'Checking client authentication credentials (OAuth2 token valid)...', type: 'info' },
+      { msg: 'Matching local patient ID against EHR Master Patient Index (MPI)...', type: 'info' },
+      { msg: `Match found! EHR Record identifier: EHR-${patient.id.replace('PT-', '59')}`, type: 'success' },
+      { msg: `Checking HIPAA consent scopes: Patient has status "${patient.consent}"`, type: 'info' },
+      { msg: `Serializing Patient resource... POST /fhir/r4/Patient/${patient.id}`, type: 'info' },
+      { msg: `[FHIR API] 200 OK (Patient demographics successfully synchronized)`, type: 'success' },
+      { msg: `Serializing Observation resource... POST /fhir/r4/Observation`, type: 'info' },
+      { msg: `[FHIR API] 201 Created (Observation ref obs-${patient.id} committed to EHR repository)`, type: 'success' },
+      { msg: `Serializing Communication history (${patient.messages.length} messages)... POST /fhir/r4/Communication`, type: 'info' },
+      { msg: `[FHIR API] 201 Created (Communication payload sync completed)`, type: 'success' },
+      { msg: `Writing pipeline transaction log audit entries...`, type: 'info' },
+      { msg: `✓ Synchronized successfully. Green Valley Weight Care EHR data is current.`, type: 'success' },
+    ];
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      if (currentStep < steps.length) {
+        const step = steps[currentStep];
+        setSyncLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${step.msg}`]);
+        currentStep++;
+      } else {
+        clearInterval(interval);
+        setIsSyncing(false);
+        onSyncComplete(`HL7 FHIR Sync completed for ${patient.name} (${patient.id}). EHR records updated.`);
+      }
+    }, 400);
+  };
+
+  return (
+    <div className="fhir-container">
+      <div className="panel-header" style={{ borderBottom: '1px solid #1e293b', padding: '0 0 16px 0', marginBottom: '20px', background: 'transparent' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Network size={18} style={{ color: '#38bdf8' }} />
+          <h2 style={{ color: '#f8fafc' }}>FHIR Interoperability Visualizer</h2>
+        </div>
+        <button
+          className="primary-button"
+          onClick={triggerFhirSync}
+          disabled={isSyncing}
+          style={{
+            background: isSyncing ? '#1e293b' : 'var(--primary)',
+            borderColor: isSyncing ? '#334155' : 'var(--primary)',
+            color: isSyncing ? '#64748b' : 'white',
+            cursor: isSyncing ? 'not-allowed' : 'pointer',
+            minHeight: '40px'
+          }}
+        >
+          {isSyncing ? 'Syncing to EHR...' : 'Trigger FHIR EHR Sync'}
+        </button>
+      </div>
+
+      <div className="fhir-layout">
+        <div className="fhir-resources">
+          <div className="fhir-tab-buttons">
+            <button
+              className={`fhir-tab-btn ${activeFhirTab === 'patient' ? 'active' : ''}`}
+              onClick={() => setActiveFhirTab('patient')}
+            >
+              Patient Resource
+            </button>
+            <button
+              className={`fhir-tab-btn ${activeFhirTab === 'observation' ? 'active' : ''}`}
+              onClick={() => setActiveFhirTab('observation')}
+            >
+              Observation (Risk & Adherence)
+            </button>
+            <button
+              className={`fhir-tab-btn ${activeFhirTab === 'communication' ? 'active' : ''}`}
+              onClick={() => setActiveFhirTab('communication')}
+            >
+              Communication (Outreach Log)
+            </button>
+          </div>
+          <pre className="fhir-code-block">
+            {JSON.stringify(currentFhirJson, null, 2)}
+          </pre>
+        </div>
+
+        <div>
+          <div className="fhir-sync-terminal">
+            <div className="fhir-terminal-header">
+              <span>EHR Integration Pipeline Monitor</span>
+              <span style={{ fontSize: '10px', background: '#1e293b', padding: '2px 6px', borderRadius: '4px' }}>
+                Secure TLS 1.3
+              </span>
+            </div>
+            {syncLogs.length === 0 ? (
+              <div style={{ color: '#64748b', fontStyle: 'italic', padding: '20px 0' }}>
+                Ready. Click &quot;Trigger FHIR EHR Sync&quot; above to trace live HL7 resource sync execution logs.
+              </div>
+            ) : (
+              syncLogs.map((log, idx) => {
+                let logClass = 'info';
+                if (log.includes('Created') || log.includes('successfully') || log.includes('OK') || log.includes('Match found')) {
+                  logClass = 'success';
+                } else if (log.includes('warning') || log.includes('HIPAA')) {
+                  logClass = 'warn';
+                }
+                return (
+                  <div key={idx} className={`fhir-terminal-line ${logClass}`}>
+                    {log}
+                  </div>
+                );
+              })
+            )}
+            <div ref={terminalEndRef} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PatientIntakeForm({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (newPatient: Omit<Patient, 'id' | 'messages' | 'missedAppointments' | 'unreadMessages' | 'refillStatus' | 'consent' | 'coach' | 'provider' | 'opportunity' | 'lastVisit' | 'nextAppointment' | 'lastCheckIn'> & { reason: string }) => void;
+}) {
+  const [name, setName] = useState('');
+  const [ageRange, setAgeRange] = useState('35-44');
+  const [location, setLocation] = useState<'Centennial' | 'Salida'>('Centennial');
+  const [program, setProgram] = useState('GLP-1 + nutrition coaching');
+  const [risk, setRisk] = useState<RiskLevel>('Moderate Risk');
+  const [weightGoal, setWeightGoal] = useState('');
+  const [reason, setReason] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSubmit({
+      name,
+      ageRange,
+      location,
+      program,
+      risk,
+      riskScore: risk === 'Clinical Review' ? 90 : risk === 'High Risk' ? 80 : risk === 'Moderate Risk' ? 55 : risk === 'Low Risk' ? 25 : 40,
+      reason: reason || `Patient enrolled in ${program} with goal to ${weightGoal || 'achieve healthy weight'}.`,
+      status: risk === 'Clinical Review' ? 'Clinical Review' : 'Needs Follow-Up',
+      recommendedAction: risk === 'Clinical Review' ? 'Escalate to provider.' : 'Initiate automated check-in.',
+    });
+  };
+
+  return (
+    <form className="intake-form" onSubmit={handleSubmit}>
+      <div className="panel-header" style={{ borderBottom: '1.5px solid var(--border)', padding: '0 0 16px 0', marginBottom: '20px', background: 'transparent' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Users size={18} />
+          <h2>New Patient Intake Registration</h2>
+        </div>
+      </div>
+      
+      <div className="intake-grid">
+        <div className="intake-group">
+          <label htmlFor="patient-name">Patient Name</label>
+          <input
+            id="patient-name"
+            type="text"
+            required
+            placeholder="e.g. Sarah Jenkins"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+
+        <div className="intake-group">
+          <label htmlFor="patient-age">Age Range</label>
+          <select id="patient-age" value={ageRange} onChange={(e) => setAgeRange(e.target.value)}>
+            <option>18-24</option>
+            <option>25-34</option>
+            <option>35-44</option>
+            <option>45-54</option>
+            <option>55-64</option>
+            <option>65+</option>
+          </select>
+        </div>
+
+        <div className="intake-group">
+          <label htmlFor="patient-location">Clinic Location</label>
+          <select id="patient-location" value={location} onChange={(e) => setLocation(e.target.value as 'Centennial' | 'Salida')}>
+            <option value="Centennial">Centennial (Denver Area)</option>
+            <option value="Salida">Salida (Rural Clinic)</option>
+          </select>
+        </div>
+
+        <div className="intake-group">
+          <label htmlFor="patient-program">Care Program</label>
+          <select id="patient-program" value={program} onChange={(e) => setProgram(e.target.value)}>
+            <option>GLP-1 + nutrition coaching</option>
+            <option>Maintenance coaching</option>
+            <option>Nutrition coaching</option>
+            <option>New intake</option>
+          </select>
+        </div>
+
+        <div className="intake-group">
+          <label htmlFor="patient-risk">Initial Risk Assessment</label>
+          <select id="patient-risk" value={risk} onChange={(e) => setRisk(e.target.value as RiskLevel)}>
+            <option>Low Risk</option>
+            <option>Moderate Risk</option>
+            <option>High Risk</option>
+            <option>Clinical Review</option>
+            <option>Do Not Automate</option>
+          </select>
+        </div>
+
+        <div className="intake-group">
+          <label htmlFor="patient-goal">Weight Loss Goal / Target</label>
+          <input
+            id="patient-goal"
+            type="text"
+            placeholder="e.g. Lose 25 lbs"
+            value={weightGoal}
+            onChange={(e) => setWeightGoal(e.target.value)}
+          />
+        </div>
+
+        <div className="intake-group intake-full">
+          <label htmlFor="patient-statement">Patient Intake Statement / Symptoms</label>
+          <input
+            id="patient-statement"
+            type="text"
+            placeholder="e.g. Experienced nausea during loading dose, wants alternative options"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="intake-actions">
+        <button type="button" className="secondary-button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="submit" className="primary-button">
+          Create Patient Profile
+        </button>
+      </div>
+    </form>
   );
 }
 
