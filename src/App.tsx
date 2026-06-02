@@ -1505,6 +1505,27 @@ function FhirIntegrationPanel({
       ? fhirObservation
       : fhirCommunication;
 
+  const fhirResourceSummaries = [
+    {
+      id: 'patient' as const,
+      title: 'Patient profile',
+      label: 'FHIR Patient',
+      detail: `${patient.name}, ${patient.ageRange}, ${patient.consent} consent`,
+    },
+    {
+      id: 'observation' as const,
+      title: 'Risk note',
+      label: 'FHIR Observation',
+      detail: `${patient.riskScore}% risk score, ${patient.risk} status`,
+    },
+    {
+      id: 'communication' as const,
+      title: 'Outreach history',
+      label: 'FHIR Communication',
+      detail: `${patient.messages.length} recent message${patient.messages.length === 1 ? '' : 's'} saved for continuity`,
+    },
+  ];
+
   useEffect(() => {
     if (terminalEndRef.current) {
       terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -1548,84 +1569,102 @@ function FhirIntegrationPanel({
 
   return (
     <div className="fhir-container">
-      <div className="panel-header" style={{ borderBottom: '1px solid #1e293b', padding: '0 0 16px 0', marginBottom: '20px', background: 'transparent' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Network size={18} style={{ color: '#38bdf8' }} />
-          <h2 style={{ color: '#f8fafc' }}>FHIR Interoperability Visualizer</h2>
+      <div className="fhir-header">
+        <div>
+          <div className="fhir-eyebrow">
+            <Network size={17} />
+            EHR sync preview
+          </div>
+          <h2>What will be saved after staff approval</h2>
+          <p>
+            Plain-language view of the patient profile, risk note, and outreach history that can sync to the EHR.
+          </p>
         </div>
         <button
           className="primary-button"
           onClick={triggerFhirSync}
           disabled={isSyncing}
-          style={{
-            background: isSyncing ? '#1e293b' : 'var(--primary)',
-            borderColor: isSyncing ? '#334155' : 'var(--primary)',
-            color: isSyncing ? '#64748b' : 'white',
-            cursor: isSyncing ? 'not-allowed' : 'pointer',
-            minHeight: '40px'
-          }}
         >
-          {isSyncing ? 'Syncing to EHR...' : 'Trigger FHIR EHR Sync'}
+          <Network size={16} />
+          {isSyncing ? 'Syncing...' : 'Run EHR sync'}
         </button>
       </div>
 
       <div className="fhir-layout">
         <div className="fhir-resources">
-          <div className="fhir-tab-buttons">
-            <button
-              className={`fhir-tab-btn ${activeFhirTab === 'patient' ? 'active' : ''}`}
-              onClick={() => setActiveFhirTab('patient')}
-            >
-              Patient Resource
-            </button>
-            <button
-              className={`fhir-tab-btn ${activeFhirTab === 'observation' ? 'active' : ''}`}
-              onClick={() => setActiveFhirTab('observation')}
-            >
-              Observation (Risk & Adherence)
-            </button>
-            <button
-              className={`fhir-tab-btn ${activeFhirTab === 'communication' ? 'active' : ''}`}
-              onClick={() => setActiveFhirTab('communication')}
-            >
-              Communication (Outreach Log)
-            </button>
+          <div className="fhir-summary-grid">
+            {fhirResourceSummaries.map((resource) => (
+              <button
+                type="button"
+                key={resource.id}
+                className={`fhir-resource-card ${activeFhirTab === resource.id ? 'active' : ''}`}
+                onClick={() => setActiveFhirTab(resource.id)}
+              >
+                <span>{resource.label}</span>
+                <strong>{resource.title}</strong>
+                <small>{resource.detail}</small>
+              </button>
+            ))}
           </div>
-          <pre className="fhir-code-block">
-            {JSON.stringify(currentFhirJson, null, 2)}
-          </pre>
+
+          <details className="fhir-technical-details">
+            <summary>Show technical FHIR payload</summary>
+            <div className="fhir-tab-buttons">
+              <button
+                className={`fhir-tab-btn ${activeFhirTab === 'patient' ? 'active' : ''}`}
+                onClick={() => setActiveFhirTab('patient')}
+              >
+                Patient
+              </button>
+              <button
+                className={`fhir-tab-btn ${activeFhirTab === 'observation' ? 'active' : ''}`}
+                onClick={() => setActiveFhirTab('observation')}
+              >
+                Risk note
+              </button>
+              <button
+                className={`fhir-tab-btn ${activeFhirTab === 'communication' ? 'active' : ''}`}
+                onClick={() => setActiveFhirTab('communication')}
+              >
+                Outreach log
+              </button>
+            </div>
+            <pre className="fhir-code-block">
+              {JSON.stringify(currentFhirJson, null, 2)}
+            </pre>
+          </details>
         </div>
 
-        <div>
-          <div className="fhir-sync-terminal">
-            <div className="fhir-terminal-header">
-              <span>EHR Integration Pipeline Monitor</span>
-              <span style={{ fontSize: '10px', background: '#1e293b', padding: '2px 6px', borderRadius: '4px' }}>
-                Secure TLS 1.3
-              </span>
-            </div>
-            {syncLogs.length === 0 ? (
-              <div style={{ color: '#64748b', fontStyle: 'italic', padding: '20px 0' }}>
-                Ready. Click &quot;Trigger FHIR EHR Sync&quot; above to trace live HL7 resource sync execution logs.
-              </div>
-            ) : (
-              syncLogs.map((log, idx) => {
-                let logClass = 'info';
-                if (log.includes('Created') || log.includes('successfully') || log.includes('OK') || log.includes('Match found')) {
-                  logClass = 'success';
-                } else if (log.includes('warning') || log.includes('HIPAA')) {
-                  logClass = 'warn';
-                }
-                return (
-                  <div key={idx} className={`fhir-terminal-line ${logClass}`}>
-                    {log}
-                  </div>
-                );
-              })
-            )}
-            <div ref={terminalEndRef} />
+        <aside className="fhir-sync-card">
+          <div className="fhir-terminal-header">
+            <span>Sync status</span>
+            <span>Secure TLS 1.3</span>
           </div>
-        </div>
+          {syncLogs.length === 0 ? (
+            <div className="fhir-empty-state">
+              <ShieldCheck size={20} />
+              <strong>Ready to preview</strong>
+              <p>
+                Click &quot;Run EHR sync&quot; to show the audit trail Mary or a provider would review.
+              </p>
+            </div>
+          ) : (
+            syncLogs.map((log, idx) => {
+              let logClass = 'info';
+              if (log.includes('Created') || log.includes('successfully') || log.includes('OK') || log.includes('Match found')) {
+                logClass = 'success';
+              } else if (log.includes('warning') || log.includes('HIPAA')) {
+                logClass = 'warn';
+              }
+              return (
+                <div key={idx} className={`fhir-terminal-line ${logClass}`}>
+                  {log}
+                </div>
+              );
+            })
+          )}
+          <div ref={terminalEndRef} />
+        </aside>
       </div>
     </div>
   );
