@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -77,6 +77,17 @@ function App() {
   // Senior Accessibility States
   const [textSize, setTextSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
   const [activeTab, setActiveTab] = useState<'queue' | 'ops' | 'performance'>('queue');
+  const [userRole, setUserRole] = useState<'coach' | 'provider'>('coach');
+
+  // Voice SOAP dictation records state
+  const [customSoapRecords, setCustomSoapRecords] = useState<Record<string, { subjective: string; assessment: string; plan: string }>>({});
+
+  const handleVoiceScribeComplete = (patientId: string, subjective: string, assessment: string, plan: string) => {
+    setCustomSoapRecords((prev) => ({
+      ...prev,
+      [patientId]: { subjective, assessment, plan },
+    }));
+  };
 
   const visiblePatients = useMemo(() => {
     return patients.filter((patient) => {
@@ -164,6 +175,32 @@ function App() {
           </div>
         </div>
         <div className="topbar-actions">
+          {/* HIPAA Role Selector Toggle */}
+          <div className="role-selector" aria-label="Session User Role">
+            <button
+              className={`role-btn ${userRole === 'coach' ? 'active' : ''}`}
+              onClick={() => {
+                setUserRole('coach');
+                setEscalated(false);
+              }}
+              title="Switch to Care Coach Role"
+            >
+              <Users size={14} />
+              Mary (Coach)
+            </button>
+            <button
+              className={`role-btn ${userRole === 'provider' ? 'active provider-active' : ''}`}
+              onClick={() => {
+                setUserRole('provider');
+                setEscalated(true);
+              }}
+              title="Switch to Clinical Provider Role"
+            >
+              <Stethoscope size={14} />
+              Dr. Wallace (MD)
+            </button>
+          </div>
+
           <div className="text-size-control" aria-label="Adjust font size">
             <span>Text Size:</span>
             <button
@@ -219,6 +256,17 @@ function App() {
           📈 Economics & ROI
         </button>
       </nav>
+
+      {/* HIPAA Secure Banner */}
+      {userRole === 'provider' && (
+        <div className="hipaa-banner" role="status">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="hipaa-badge">Secure HIPAA Session</span>
+            <span>Dr. Wallace&apos;s Provider Workspace is active. Role-restricted Protected Health Information (PHI) visible.</span>
+          </div>
+          <span style={{ fontSize: 'var(--font-xs)', opacity: 0.8 }}>ID: PRV-90822</span>
+        </div>
+      )}
 
       {activeTab === 'queue' && (
         <>
@@ -278,6 +326,9 @@ function App() {
               onApprove={approveDraft}
               onEscalate={escalatePatient}
               onShowSoap={() => setShowSoap((value) => !value)}
+              userRole={userRole}
+              customSoap={customSoapRecords[selectedPatient.id]}
+              onVoiceScribeComplete={(sub, assess, plan) => handleVoiceScribeComplete(selectedPatient.id, sub, assess, plan)}
             />
           </section>
         </>
@@ -566,6 +617,9 @@ function PatientCommand({
   onApprove,
   onEscalate,
   onShowSoap,
+  userRole,
+  customSoap,
+  onVoiceScribeComplete,
 }: {
   patient: Patient;
   tone: Tone;
@@ -578,13 +632,22 @@ function PatientCommand({
   onApprove: () => void;
   onEscalate: () => void;
   onShowSoap: () => void;
+  userRole: 'coach' | 'provider';
+  customSoap?: { subjective: string; assessment: string; plan: string };
+  onVoiceScribeComplete: (subjective: string, assessment: string, plan: string) => void;
 }) {
   return (
     <section className="panel patient-panel">
       <PanelHeader
         icon={MessageSquareText}
         title={`${patient.name} outreach workspace`}
-        action={escalated ? 'Needs Human Review' : 'AI Assist'}
+        action={
+          userRole === 'provider'
+            ? '🔐 Secure Clinical Mode (MD)'
+            : escalated
+            ? '⚠️ Needs Coach Review'
+            : '✨ AI Assist Active (Coach)'
+        }
       />
       <div className="patient-layout">
         <aside className="patient-summary">
@@ -682,27 +745,165 @@ function PatientCommand({
           </div>
         </div>
       </div>
-      {showSoap && <SoapPreview patient={patient} />}
+      {showSoap && (
+        <SoapPreview
+          patient={patient}
+          userRole={userRole}
+          customSoap={customSoap}
+          onVoiceScribeComplete={onVoiceScribeComplete}
+        />
+      )}
     </section>
   );
 }
 
-function SoapPreview({ patient }: { patient: Patient }) {
+const mockSoapTranscripts: Record<string, { subjective: string; assessment: string; plan: string }> = {
+  'PT-1042': {
+    subjective: 'Patient Maya R. reporting persistent moderate nausea and mild dizziness after missing her refill check-in. Adherence is disrupted.',
+    assessment: 'GLP-1 receptor agonist side effects (nausea, dizziness), likely secondary to titration schedule or poor hydration. Adherence alert.',
+    plan: 'Hold automated SMS checks. Escalating clinical file to Dr. Wallace for medication titration adjustment or anti-emetic prescription. Patient contact requested.'
+  },
+  'PT-1094': {
+    subjective: 'Jordan K. reported by phone that they missed two coaching consults due to travel and plan disruption. Requests morning spots.',
+    assessment: 'Non-adherence due to lifestyle travel changes. High risk of program drop-off. Ready for re-engagement checks.',
+    plan: 'Approve conversational outreach message. Provide scheduling link for Centennial clinic morning appointments. Monitor weekly reply status.'
+  },
+  'PT-1130': {
+    subjective: 'Taylor S. is a no-show following initial GLP-1 program consult. No replies or activity for 21 days.',
+    assessment: 'New intake patient retention risk. Critical barrier to program initiation.',
+    plan: 'Send missed-visit re-engagement check-in with scheduling options. If no response within 48 hours, route file to clinic operations.'
+  },
+  'PT-1017': {
+    subjective: 'Alex B. requesting clarification on communications consent preferences and automated reminders.',
+    assessment: 'Moderate risk. Retention outreach blocked pending manual confirmation of text consent flags.',
+    plan: 'Initiate manual coaching call to verify SMS consent status and record preferences before resuming automated re-engagement workflow.'
+  },
+  'PT-1088': {
+    subjective: 'Samira N. requested full unsubscribe from SMS reminders. No-show on medication checks.',
+    assessment: 'Opted out. Automated clinical outreach deactivated. Manual clinical support only.',
+    plan: 'Place profile on do-not-automate list. Route to clinic operations for phone callback if clinical indicators deteriorate.'
+  }
+};
+
+function formatTimer(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+function SoapPreview({
+  patient,
+  userRole,
+  customSoap,
+  onVoiceScribeComplete,
+}: {
+  patient: Patient;
+  userRole: 'coach' | 'provider';
+  customSoap?: { subjective: string; assessment: string; plan: string };
+  onVoiceScribeComplete: (subjective: string, assessment: string, plan: string) => void;
+}) {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordTime, setRecordTime] = useState(0);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isRecording) {
+      setRecordTime(0);
+      timerRef.current = window.setInterval(() => {
+        setRecordTime((t) => t + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+      }
+    };
+  }, [isRecording]);
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      setIsRecording(false);
+      const transcript = mockSoapTranscripts[patient.id] || {
+        subjective: `Patient reported concern: ${patient.reason}`,
+        assessment: `${patient.risk} clinical review.`,
+        plan: `${patient.recommendedAction} Approved by provider.`
+      };
+      onVoiceScribeComplete(transcript.subjective, transcript.assessment, transcript.plan);
+    } else {
+      setIsRecording(true);
+    }
+  };
+
+  const isProvider = userRole === 'provider';
+  const hasTranscribed = !!customSoap;
+
   return (
     <div className="soap-preview">
-      <PanelHeader icon={Mic} title="SOAP documentation preview" action="Coming next" />
-      <div className="soap-grid">
+      <div className="panel-header" style={{ borderBottom: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Mic size={18} />
+          <h2>SOAP documentation preview</h2>
+        </div>
+        
+        <div className="mic-btn-container">
+          {isRecording && (
+            <div className="recording-status" style={{ marginRight: '8px' }}>
+              <span className="recording-pulse-dot" />
+              <span>Transcribing audio... {formatTimer(recordTime)}</span>
+            </div>
+          )}
+          
+          <button
+            className={`mic-btn ${isRecording ? 'recording' : ''}`}
+            onClick={toggleRecording}
+            disabled={!isProvider}
+            title={
+              !isProvider
+                ? 'Role-restricted: Clinical Providers only can record SOAP scribe'
+                : isRecording
+                ? 'Stop Voice Scribe dictation'
+                : 'Start Voice Scribe dictation'
+            }
+            style={{ opacity: isProvider ? 1 : 0.5, cursor: isProvider ? 'pointer' : 'not-allowed' }}
+          >
+            <Mic size={20} />
+          </button>
+
+          {!isProvider && (
+            <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-soft)' }}>
+              🔒 Scribe locked (Provider only)
+            </span>
+          )}
+          {isProvider && !isRecording && !hasTranscribed && (
+            <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-soft)' }}>
+              🎙️ Click to record dictation
+            </span>
+          )}
+          {isProvider && hasTranscribed && !isRecording && (
+            <span style={{ fontSize: 'var(--font-xs)', color: 'var(--primary-dark)', fontWeight: 'bold' }}>
+              ✓ Scribed successfully
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="soap-grid" style={{ paddingTop: 0 }}>
         <div>
           <strong>Subjective</strong>
-          <p>Patient-reported engagement concern: {patient.reason}</p>
+          <p>{customSoap ? customSoap.subjective : `Patient-reported engagement concern: ${patient.reason}`}</p>
         </div>
         <div>
           <strong>Assessment</strong>
-          <p>{patient.risk} follow-up signal. AI draft is informational and requires care-team review.</p>
+          <p>{customSoap ? customSoap.assessment : `${patient.risk} follow-up signal. AI draft is informational and requires care-team review.`}</p>
         </div>
         <div>
           <strong>Plan</strong>
-          <p>{patient.recommendedAction} Clinical decisions remain with licensed professionals.</p>
+          <p>{customSoap ? customSoap.plan : `${patient.recommendedAction} Clinical decisions remain with licensed professionals.`}</p>
         </div>
       </div>
     </div>
