@@ -74,6 +74,10 @@ function App() {
   const [escalated, setEscalated] = useState(true);
   const [showSoap, setShowSoap] = useState(false);
 
+  // Senior Accessibility States
+  const [textSize, setTextSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
+  const [activeTab, setActiveTab] = useState<'queue' | 'ops' | 'performance'>('queue');
+
   const visiblePatients = useMemo(() => {
     return patients.filter((patient) => {
       const locationMatch = location === 'All Locations' || patient.location === location;
@@ -150,8 +154,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
-      <CircuitTexture />
+    <main className={`app-shell text-scale-${textSize}`}>
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-mark">C</div>
@@ -161,93 +164,153 @@ function App() {
           </div>
         </div>
         <div className="topbar-actions">
+          <div className="text-size-control" aria-label="Adjust font size">
+            <span>Text Size:</span>
+            <button
+              className={`size-toggle-btn ${textSize === 'normal' ? 'active' : ''}`}
+              onClick={() => setTextSize('normal')}
+              data-size="normal"
+              title="Normal text size"
+            >
+              A
+            </button>
+            <button
+              className={`size-toggle-btn ${textSize === 'large' ? 'active' : ''}`}
+              onClick={() => setTextSize('large')}
+              data-size="large"
+              title="Larger text size"
+            >
+              A+
+            </button>
+            <button
+              className={`size-toggle-btn ${textSize === 'xlarge' ? 'active' : ''}`}
+              onClick={() => setTextSize('xlarge')}
+              data-size="xlarge"
+              title="Extra large text size"
+            >
+              A++
+            </button>
+          </div>
           <span className="demo-pill">
             <ShieldCheck size={15} />
-            Synthetic data. Workflow demo only.
+            Workflow demo only
           </span>
-          <button className="secondary-button">
-            <BellRing size={16} />
-            Review queue
-          </button>
         </div>
       </header>
 
-      <section className="hero-band">
-        <div>
-          <h1>Start with the patients who need help today.</h1>
-          <p>
-            A calmer command center for Mary&apos;s team: see the highest priority, review the message,
-            approve outreach, or send the concern to a provider.
-          </p>
-        </div>
-        <div className="hero-actions" aria-label="Location filter">
-          {locations.map((item) => (
-            <button
-              className={item === location ? 'filter active' : 'filter'}
-              key={item}
-              onClick={() => {
-                setLocation(item);
-                const next = item === 'All Locations' ? patients[0] : patients.find((patient) => patient.location === item);
-                if (next) setSelectedId(next.id);
+      {/* Senior Accessibility Tab Navigation */}
+      <nav className="tab-bar" aria-label="Workspace Views">
+        <button
+          className={`tab-btn ${activeTab === 'queue' ? 'active' : ''}`}
+          onClick={() => setActiveTab('queue')}
+        >
+          📋 Daily Follow-up Queue
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'ops' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ops')}
+        >
+          📊 Multi-Clinic Operations
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'performance' ? 'active' : ''}`}
+          onClick={() => setActiveTab('performance')}
+        >
+          📈 Economics & ROI
+        </button>
+      </nav>
+
+      {activeTab === 'queue' && (
+        <>
+          <section className="hero-band">
+            <div>
+              <h1>Start with the patients who need help today.</h1>
+              <p>
+                A calmer command center: review the pending automated outreach, customize message tones,
+                or escalate concerns directly to clinic providers.
+              </p>
+            </div>
+            <div className="hero-actions" aria-label="Location filter">
+              {locations.map((item) => (
+                <button
+                  className={item === location ? 'filter active' : 'filter'}
+                  key={item}
+                  onClick={() => {
+                    setLocation(item);
+                    const next = item === 'All Locations' ? patients[0] : patients.find((patient) => patient.location === item);
+                    if (next) setSelectedId(next.id);
+                  }}
+                >
+                  {item === 'All Locations' ? <Network size={16} /> : <MapPin size={16} />}
+                  {item === 'All Locations' ? 'All clinics' : item}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <PriorityPanel patient={selectedPatient} patients={visiblePatients} onSelect={() => setSelectedId(selectedPatient.id)} />
+
+          <section className="workspace-grid">
+            <RiskQueue
+              patients={visiblePatients}
+              selectedId={selectedPatient.id}
+              query={query}
+              riskFilter={riskFilter}
+              statusFilter={statusFilter}
+              onQueryChange={setQuery}
+              onRiskFilterChange={setRiskFilter}
+              onStatusFilterChange={setStatusFilter}
+              onSelect={(patient) => {
+                setSelectedId(patient.id);
+                setEscalated(patient.risk === 'Clinical Review');
+                setShowSoap(false);
               }}
-            >
-              {item === 'All Locations' ? <Network size={16} /> : <MapPin size={16} />}
-              {item === 'All Locations' ? 'All clinics' : item}
-            </button>
-          ))}
-        </div>
-      </section>
+            />
+            <PatientCommand
+              patient={selectedPatient}
+              tone={tone}
+              draft={draft}
+              sentCount={sentCount}
+              escalated={escalated}
+              showSoap={showSoap}
+              onToneChange={changeTone}
+              onDraftChange={setDraft}
+              onApprove={approveDraft}
+              onEscalate={escalatePatient}
+              onShowSoap={() => setShowSoap((value) => !value)}
+            />
+          </section>
+        </>
+      )}
 
-      <PriorityPanel patient={selectedPatient} patients={visiblePatients} onSelect={() => setSelectedId(selectedPatient.id)} />
+      {activeTab === 'ops' && (
+        <>
+          <section className="metric-grid" aria-label="Clinical operations metrics" style={{ marginTop: '24px' }}>
+            {metrics.map((metric) => (
+              <MetricCard metric={metric} key={metric.label} />
+            ))}
+          </section>
 
-      <section className="metric-grid" aria-label="Clinical operations metrics">
-        {metrics.map((metric) => (
-          <MetricCard metric={metric} key={metric.label} />
-        ))}
-      </section>
+          <section className="bottom-grid" style={{ marginTop: '24px' }}>
+            <OperationsPanel location={location} patients={visiblePatients} />
+            <AuditPanel sentCount={sentCount} escalated={escalated} patient={selectedPatient} />
+          </section>
+        </>
+      )}
 
-      <section className="workspace-grid">
-        <RiskQueue
-          patients={visiblePatients}
-          selectedId={selectedPatient.id}
-          query={query}
-          riskFilter={riskFilter}
-          statusFilter={statusFilter}
-          onQueryChange={setQuery}
-          onRiskFilterChange={setRiskFilter}
-          onStatusFilterChange={setStatusFilter}
-          onSelect={(patient) => {
-            setSelectedId(patient.id);
-            setEscalated(patient.risk === 'Clinical Review');
-            setShowSoap(false);
-          }}
-        />
-        <PatientCommand
-          patient={selectedPatient}
-          tone={tone}
-          draft={draft}
-          sentCount={sentCount}
-          escalated={escalated}
-          showSoap={showSoap}
-          onToneChange={changeTone}
-          onDraftChange={setDraft}
-          onApprove={approveDraft}
-          onEscalate={escalatePatient}
-          onShowSoap={() => setShowSoap((value) => !value)}
-        />
-      </section>
+      {activeTab === 'performance' && (
+        <>
+          <section className="promise-grid" aria-label="Why this improves retention" style={{ marginTop: '24px' }}>
+            <RetentionCurve />
+            <WorkflowComparison />
+            <PaybackSummary patients={visiblePatients} />
+          </section>
 
-      <section className="promise-grid" aria-label="Why this improves retention">
-        <RetentionCurve />
-        <WorkflowComparison />
-        <PaybackSummary patients={visiblePatients} />
-      </section>
-
-      <section className="bottom-grid">
-        <OperationsPanel location={location} patients={visiblePatients} />
-        <RoiMatrix />
-        <AuditPanel sentCount={sentCount} escalated={escalated} patient={selectedPatient} />
-      </section>
+          <section className="bottom-grid" style={{ marginTop: '24px' }}>
+            <RoiMatrix />
+          </section>
+        </>
+      )}
     </main>
   );
 }
