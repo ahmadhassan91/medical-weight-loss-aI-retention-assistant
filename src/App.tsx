@@ -1508,21 +1508,21 @@ function FhirIntegrationPanel({
   const fhirResourceSummaries = [
     {
       id: 'patient' as const,
-      title: 'Patient profile',
-      label: 'FHIR Patient',
-      detail: `${patient.name}, ${patient.ageRange}, ${patient.consent} consent`,
+      title: patient.name,
+      label: 'Patient',
+      detail: `${patient.ageRange} age band, ${patient.consent} consent`,
     },
     {
       id: 'observation' as const,
-      title: 'Risk note',
-      label: 'FHIR Observation',
-      detail: `${patient.riskScore}% risk score, ${patient.risk} status`,
+      title: `${patient.riskScore}% risk score`,
+      label: 'Risk note',
+      detail: `${patient.risk} status for ${patient.program}`,
     },
     {
       id: 'communication' as const,
-      title: 'Outreach history',
-      label: 'FHIR Communication',
-      detail: `${patient.messages.length} recent message${patient.messages.length === 1 ? '' : 's'} saved for continuity`,
+      title: `${patient.messages.length} messages`,
+      label: 'Messages',
+      detail: 'Recent outreach history for continuity of care',
     },
   ];
 
@@ -1573,11 +1573,11 @@ function FhirIntegrationPanel({
         <div>
           <div className="fhir-eyebrow">
             <Network size={17} />
-            EHR sync preview
+            EHR save preview
           </div>
-          <h2>What will be saved after staff approval</h2>
+          <h2>What gets saved after approval</h2>
           <p>
-            Plain-language view of the patient profile, risk note, and outreach history that can sync to the EHR.
+            Patient details, risk status, and recent outreach are prepared for the EHR in one simple review.
           </p>
         </div>
         <button
