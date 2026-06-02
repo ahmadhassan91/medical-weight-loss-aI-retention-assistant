@@ -124,7 +124,7 @@ function App() {
       if (aiMsg) {
         setDraft(aiMsg.body);
       } else {
-        setDraft(`Hi ${selectedPatient.name.split(' ')[0]}, this is Green Valley Weight Care checking in. How is your program going?`);
+        setDraft(`Hi ${selectedPatient.name.split(' ')[0]}, this is Comprehensive Medical Weight Loss checking in. How is your program going?`);
       }
       setEscalated(selectedPatient.risk === 'Clinical Review');
     }
@@ -381,13 +381,13 @@ function App() {
           id: `m-sim-init-${Date.now()}`,
           sender: 'patient',
           time: 'Just now',
-          body: `Hi, registering for Green Valley Weight Care. ${newPatientData.reason}`,
+          body: `Hi, registering for Comprehensive Medical Weight Loss. ${newPatientData.reason}`,
         },
         {
           id: `m-sim-ai-${Date.now()}`,
           sender: 'ai',
           time: 'Draft pending',
-          body: `Hi ${newPatientData.name.split(' ')[0]}, welcome to Green Valley Weight Care. We are excited to support your journey. Reply YES to confirm your first coaching session.`,
+          body: `Hi ${newPatientData.name.split(' ')[0]}, welcome to Comprehensive Medical Weight Loss. We are excited to support your journey. Reply YES to confirm your first coaching session.`,
         },
       ],
     };
@@ -413,10 +413,12 @@ function App() {
     <main className={`app-shell text-scale-${textSize}`}>
       <header className="topbar">
         <div className="brand-lockup">
-          <div className="brand-mark">C</div>
+          <div className="brand-mark">
+            <img src="/brand/comprehensive-medical-weight-loss-logo.png" alt="Comprehensive Medical Weight Loss" />
+          </div>
           <div>
-            <strong>Mary&apos;s Follow-up Board</strong>
-            <span>Simple daily patient retention support</span>
+            <strong>Comprehensive Medical Weight Loss</strong>
+            <span>Patient retention board for Centennial and Salida</span>
           </div>
         </div>
         <div className="topbar-actions">
@@ -475,7 +477,7 @@ function App() {
           </div>
           <span className="demo-pill">
             <ShieldCheck size={15} />
-            Workflow demo only
+            Personalized healthcare backed by science
           </span>
         </div>
       </header>
@@ -517,10 +519,10 @@ function App() {
         <>
           <section className="hero-band">
             <div>
-              <h1>Start with the patients who need help today.</h1>
+              <h1>Help patients feel like themselves again.</h1>
               <p>
-                A calmer command center: review the pending automated outreach, customize message tones,
-                or escalate concerns directly to clinic providers.
+                A calm daily board for medically supervised weight loss follow-up, appointment recovery,
+                and care-team escalation across Centennial and Salida.
               </p>
             </div>
             <div className="hero-actions" aria-label="Location filter">
@@ -714,14 +716,14 @@ function RetentionCurve() {
     <section className="panel promise-panel retention-panel">
       <PanelHeader icon={TrendingUp} title="Retention curve impact" action="25-30% modeled lift" />
       <div className="curve-wrap">
-        <svg viewBox="0 0 520 220" role="img" aria-label="Retention curve comparing standard workflow with Clustox AI workflow">
+        <svg viewBox="0 0 520 220" role="img" aria-label="Retention curve comparing standard workflow with AI-assisted follow-up">
           <line x1="54" y1="174" x2="488" y2="174" />
           <line x1="54" y1="34" x2="54" y2="174" />
           <path className="standard-line" d="M58 58 C156 62 212 96 258 132 S360 166 486 170" />
           <path className="ai-line" d="M58 58 C152 54 245 52 336 52 S440 47 486 42" />
           <circle className="curve-dot" cx="338" cy="52" r="6" />
           <text x="76" y="28">Patient engagement</text>
-          <text x="315" y="32">Clustox AI workflow</text>
+          <text x="315" y="32">AI-assisted follow-up</text>
           <text x="282" y="145">Standard workflow</text>
           <text x="300" y="82">25-30% retention lift</text>
           <text x="170" y="205">Time after initial consult</text>
@@ -740,7 +742,7 @@ function WorkflowComparison() {
   const after = ['AI risk scoring', 'Staff-reviewed outreach', 'Human escalation when needed'];
   return (
     <section className="panel promise-panel">
-      <PanelHeader icon={Workflow} title="Before AI vs with Clustox AI" action="Workflow upgrade" />
+      <PanelHeader icon={Workflow} title="Before AI vs guided follow-up" action="Workflow upgrade" />
       <div className="comparison-grid">
         <div className="comparison-column before">
           <strong>Before AI</strong>
@@ -749,7 +751,7 @@ function WorkflowComparison() {
           ))}
         </div>
         <div className="comparison-column after">
-          <strong>With Clustox AI</strong>
+          <strong>With guided AI follow-up</strong>
           {after.map((item) => (
             <span key={item}>{item}</span>
           ))}
@@ -1221,7 +1223,7 @@ function OperationsPanel({ location, patients: visiblePatients }: { location: Lo
       <div className="workflow-strip">
         <span>Location data</span>
         <Workflow size={18} />
-        <span>Clustox AI triage</span>
+        <span>Clinic AI triage</span>
         <ArrowUpRight size={18} />
         <span>Staff-approved outreach</span>
       </div>
@@ -1550,7 +1552,7 @@ function FhirIntegrationPanel({
       { msg: `Serializing Communication history (${patient.messages.length} messages)... POST /fhir/r4/Communication`, type: 'info' },
       { msg: `[FHIR API] 201 Created (Communication payload sync completed)`, type: 'success' },
       { msg: `Writing pipeline transaction log audit entries...`, type: 'info' },
-      { msg: `✓ Synchronized successfully. Green Valley Weight Care EHR data is current.`, type: 'success' },
+      { msg: `✓ Synchronized successfully. Comprehensive Medical Weight Loss EHR data is current.`, type: 'success' },
     ];
 
     let currentStep = 0;
@@ -1645,7 +1647,7 @@ function FhirIntegrationPanel({
               <ShieldCheck size={20} />
               <strong>Ready to preview</strong>
               <p>
-                Click &quot;Run EHR sync&quot; to show the audit trail Mary or a provider would review.
+                Click &quot;Run EHR sync&quot; to show the audit trail the care team would review.
               </p>
             </div>
           ) : (

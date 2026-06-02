@@ -1,29 +1,31 @@
 :root {
-  --bg: #f8fafc;
+  --bg: #f4f1f0;
   --surface: #ffffff;
-  --surface-muted: #f1f5f9;
+  --surface-muted: #f7f4f8;
   --panel: #ffffff;
-  --border: #cbd5e1;
-  --border-strong: #94a3b8;
-  --text: #0f172a;        /* Increased contrast dark color */
-  --text-muted: #334155;  /* High contrast charcoal */
-  --text-soft: #475569;   /* High contrast slate */
-  --primary: #0f766e;     /* Teal primary (AAA compliant) */
-  --primary-dark: #115e59;
-  --primary-soft: #ccfbf1;
-  --blue: #1d4ed8;
-  --blue-soft: #dbeafe;
-  --amber: #b45309;
-  --amber-soft: #fef3c7;
+  --border: #ddd2e2;
+  --border-strong: #875f95;
+  --text: #151111;
+  --text-muted: #3f393f;
+  --text-soft: #625862;
+  --primary: #875f95;
+  --primary-dark: #5f3f6c;
+  --primary-soft: #eae6ed;
+  --accent: #e9ceb0;
+  --accent-soft: #fbf2e8;
+  --blue: #5f3f6c;
+  --blue-soft: #eae6ed;
+  --amber: #8a5d22;
+  --amber-soft: #fbf2e8;
   --red: #c2410c;
   --red-soft: #ffedd5;
-  --slate: #1e293b;
-  --slate-soft: #f1f5f9;
-  --shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
-  --shadow-soft: 0 6px 20px rgba(15, 23, 42, 0.05);
+  --slate: #151111;
+  --slate-soft: #eae6ed;
+  --shadow: 0 14px 34px rgba(45, 29, 50, 0.1);
+  --shadow-soft: 0 8px 22px rgba(45, 29, 50, 0.07);
 
   color: var(--text);
-  font-family: 'Outfit', 'Lexend', system-ui, -apple-system, sans-serif;
+  font-family: 'Open Sans', 'Lato', system-ui, -apple-system, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -37,7 +39,9 @@
 body {
   margin: 0;
   min-width: 320px;
-  background: var(--bg);
+  background:
+    linear-gradient(180deg, rgba(234, 230, 237, 0.55), rgba(244, 241, 240, 0.88)),
+    var(--bg);
 }
 
 button,
@@ -95,7 +99,7 @@ button {
 .priority-panel {
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .topbar {
@@ -128,24 +132,31 @@ button {
 }
 
 .brand-lockup {
-  gap: 12px;
+  gap: 16px;
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border: 2px solid var(--primary);
-  border-radius: 10px;
-  color: var(--primary-dark);
-  font-size: var(--font-2xl);
-  font-weight: 800;
+  display: flex;
+  align-items: center;
+  width: clamp(190px, 22vw, 260px);
+  min-width: 190px;
+  height: 52px;
+  padding: 6px 0;
+}
+
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
 .brand-lockup strong {
   display: block;
+  font-family: 'Oswald', 'Open Sans', sans-serif;
   font-size: var(--font-md);
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--slate);
 }
 
@@ -174,8 +185,8 @@ button {
   padding: 0 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface-muted);
-  color: var(--slate);
+  background: var(--accent-soft);
+  color: var(--primary-dark);
   font-size: var(--font-xs);
   font-weight: 700;
 }
@@ -187,7 +198,10 @@ button {
   gap: 34px;
   margin-top: 20px;
   padding: 34px;
-  border-radius: 12px;
+  border-radius: 10px;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.96), rgba(234, 230, 237, 0.82)),
+    var(--surface);
 }
 
 h1,
@@ -196,12 +210,21 @@ p {
   margin: 0;
 }
 
+h2 {
+  font-family: 'Oswald', 'Open Sans', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
 h1 {
   max-width: 760px;
+  font-family: 'Oswald', 'Open Sans', sans-serif;
   font-size: clamp(34px, 4.5vw, 52px);
   line-height: 1.1;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--slate);
+  text-transform: uppercase;
 }
 
 .hero-band p {
@@ -218,7 +241,7 @@ h1 {
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface-muted);
+  background: rgba(234, 230, 237, 0.55);
 }
 
 .filter,
@@ -757,25 +780,25 @@ select:focus-visible {
 .risk-amber {
   background: var(--amber-soft);
   color: var(--amber);
-  border: 1px solid #fde047;
+  border: 1px solid var(--accent);
 }
 
 .risk-blue {
   background: var(--blue-soft);
   color: var(--blue);
-  border: 1px solid #93c5fd;
+  border: 1px solid var(--border);
 }
 
 .risk-green {
   background: var(--primary-soft);
   color: var(--primary-dark);
-  border: 1px solid #6ee7b7;
+  border: 1px solid var(--border-strong);
 }
 
 .risk-slate {
   background: var(--slate-soft);
   color: var(--slate);
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border);
 }
 
 .risk-score {
@@ -879,7 +902,7 @@ select:focus-visible {
   padding: 18px;
   background:
     linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)),
-    radial-gradient(circle at 88% 20%, rgba(24, 166, 106, 0.1), transparent 28%);
+    radial-gradient(circle at 88% 20%, rgba(135, 95, 149, 0.12), transparent 28%);
 }
 
 .message {
@@ -892,13 +915,13 @@ select:focus-visible {
 
 .message.patient {
   justify-self: end;
-  border-color: rgba(37, 99, 235, 0.35);
-  background: var(--blue-soft);
+  border-color: rgba(135, 95, 149, 0.35);
+  background: var(--primary-soft);
 }
 
 .message.ai {
-  border-color: rgba(15, 118, 110, 0.4);
-  background: var(--primary-soft);
+  border-color: rgba(233, 206, 176, 0.8);
+  background: var(--accent-soft);
 }
 
 .message span {
@@ -970,7 +993,7 @@ textarea {
 
 textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+  box-shadow: 0 0 0 3px rgba(135, 95, 149, 0.16);
 }
 
 .ai-actions {
@@ -1147,7 +1170,7 @@ textarea:focus {
 .roi-grid article {
   min-height: 150px;
   padding: 16px;
-  border: 1.5px solid rgba(15, 118, 110, 0.25);
+  border: 1.5px solid rgba(135, 95, 149, 0.24);
   border-radius: 10px;
   background: linear-gradient(180deg, #ffffff, var(--primary-soft));
 }
@@ -1536,7 +1559,7 @@ textarea:focus {
 .intake-group select:focus {
   border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+  box-shadow: 0 0 0 3px rgba(135, 95, 149, 0.16);
 }
 
 .intake-full {
@@ -1552,7 +1575,7 @@ textarea:focus {
 /* FHIR EHR Integration Panel Styling */
 .fhir-container {
   border-top: 1.5px solid var(--border);
-  background: linear-gradient(180deg, #f8fbfa, #eef7f5);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(234, 230, 237, 0.74));
   color: var(--text);
   padding: 22px;
   min-width: 0;
@@ -1565,7 +1588,7 @@ textarea:focus {
   align-items: start;
   gap: 16px;
   padding-bottom: 18px;
-  border-bottom: 1.5px solid rgba(15, 118, 110, 0.16);
+  border-bottom: 1.5px solid rgba(135, 95, 149, 0.18);
   margin-bottom: 18px;
   min-width: 0;
 }
@@ -1585,9 +1608,9 @@ textarea:focus {
 }
 
 .fhir-header .primary-button:disabled {
-  background: #cbd5e1;
-  border-color: #cbd5e1;
-  color: #64748b;
+  background: var(--primary-soft);
+  border-color: var(--border);
+  color: var(--text-soft);
   cursor: not-allowed;
 }
 
@@ -1646,12 +1669,12 @@ textarea:focus {
   display: grid;
   gap: 4px;
   align-content: center;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 12px 24px rgba(45, 29, 50, 0.06);
 }
 
 .fhir-resource-card.active {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  box-shadow: 0 0 0 3px rgba(135, 95, 149, 0.14);
 }
 
 .fhir-resource-card span {
@@ -1728,10 +1751,10 @@ textarea:focus {
 
 .fhir-code-block {
   font-family: 'Courier New', Courier, monospace;
-  background: #0f172a;
+  background: #151111;
   padding: 16px;
   border-radius: 8px;
-  border: 1px solid #1e293b;
+  border: 1px solid #3f393f;
   overflow-x: auto;
   white-space: pre;
   font-size: var(--font-xs);
@@ -1745,7 +1768,7 @@ textarea:focus {
   min-width: 0;
   max-width: 100%;
   background: white;
-  border: 1.5px solid rgba(15, 118, 110, 0.18);
+  border: 1.5px solid rgba(135, 95, 149, 0.22);
   border-radius: 8px;
   padding: 16px;
   display: flex;
@@ -1829,9 +1852,9 @@ textarea:focus {
 /* SMS Simulator Styling */
 .sms-simulator-box {
   padding: 16px 20px;
-  background: #eff6ff; /* Soft blue background */
-  border-top: 1.5px solid rgba(37, 99, 235, 0.2);
-  border-bottom: 1.5px solid rgba(37, 99, 235, 0.2);
+  background: var(--accent-soft);
+  border-top: 1.5px solid rgba(135, 95, 149, 0.18);
+  border-bottom: 1.5px solid rgba(135, 95, 149, 0.18);
 }
 
 .sms-simulator-header {
@@ -1862,7 +1885,7 @@ textarea:focus {
   font-size: var(--font-xs);
   font-weight: 700;
   border-radius: 18px;
-  border: 1.5px solid rgba(37, 99, 235, 0.3);
+  border: 1.5px solid rgba(135, 95, 149, 0.28);
   background: white;
   color: var(--blue);
   cursor: pointer;
@@ -1885,7 +1908,7 @@ textarea:focus {
   flex: 1;
   height: 48px;
   padding: 0 16px;
-  border: 1.5px solid rgba(37, 99, 235, 0.3);
+  border: 1.5px solid rgba(135, 95, 149, 0.28);
   border-radius: 8px;
   font-size: var(--font-base);
   background: white;
@@ -1895,7 +1918,7 @@ textarea:focus {
 .sms-input-row input:focus {
   outline: none;
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px rgba(135, 95, 149, 0.16);
 }
 
 .sms-send-btn {

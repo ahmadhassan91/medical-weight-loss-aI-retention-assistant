@@ -243,7 +243,7 @@ export const patients: Patient[] = [
         id: 's1',
         sender: 'clinic',
         time: 'May 18, 3:45 PM',
-        body: 'You have been unsubscribed from automated messages from Green Valley Weight Care.',
+        body: 'You have been unsubscribed from automated messages from Comprehensive Medical Weight Loss.',
       },
     ],
   },
